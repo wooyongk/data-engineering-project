@@ -20,4 +20,4 @@ with DAG(
 
     end = EmptyOperator(task_id="end")
 
-    start > test_python() > end
+    start >> test_python() >> end
