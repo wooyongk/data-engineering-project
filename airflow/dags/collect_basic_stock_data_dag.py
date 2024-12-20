@@ -47,11 +47,29 @@ def get_otp_code(session: requests.Session) -> str:
     return response.content
 
 
-def download_stock_data(session: requests.Session, otp_code: str) -> BytesIO:
+def download_stock_data(session: requests.Session, otp_code: str) -> pd.DataFrame:
     download_url = f"{KRX_BASE_URL}/comm/fileDn/download_csv/download.cmd"
     response = session.post(url=download_url, data={"code": otp_code})
     response.raise_for_status()
-    return BytesIO(response.content)
+
+    df = pd.read_csv(
+        BytesIO(response.content),
+        encoding="cp949",
+        usecols=list(range(7)),
+        names=[
+            "standard_code",
+            "code",
+            "company_kr_name",
+            "company_kr_short_name",
+            "company_eg_name",
+            "listing_date",
+            "market",
+        ],
+        header=0,
+        parse_dates=["listing_date"],
+    )
+
+    return df
 
 
 with DAG(
@@ -72,30 +90,15 @@ with DAG(
             return download_stock_data(session, otp_code)
 
     @task(task_id="upsert-stock-data-to-db")
-    def upsert_stock_data_to_db(data: BytesIO) -> None:
+    def upsert_stock_data_to_db(**context) -> None:
         mysql_hook = MySqlHook(
             mysql_conn_id="MYSQL_DATABASE_DATA"
         ).get_sqlalchemy_engine()
         upsert_with_unique_keys = partial(upsert_method, unique_keys=["id", "subject"])
 
-        df = pd.read_csv(
-            data,
-            encoding="cp949",
-            usecols=list(range(7)),
-            names=[
-                "standard_code",
-                "code",
-                "company_kr_name",
-                "company_kr_short_name",
-                "company_eg_name",
-                "listing_date",
-                "market",
-            ],
-            header=0,
-            parse_dates=["listing_date"],
-        )
+        data = context["ti"].xcom_pull(task_ids="fetch-stock-data-from-krx")
 
-        df.to_sql(
+        data.to_sql(
             con=mysql_hook,
             name="stock",
             if_exists="append",
@@ -108,4 +111,4 @@ with DAG(
 
     end = EmptyOperator(task_id="end")
 
-    start >> stock_data >> upsert_stock_data_to_db(stock_data) >> end
+    start >> stock_data >> upsert_stock_data_to_db() >> end
