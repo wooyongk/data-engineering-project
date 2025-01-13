@@ -111,7 +111,7 @@ with DAG(
 
         data = yf.download(
             up_to_date,
-            start=(get_execute_datetime_in_kst(**kwargs) + timedelta(days=-2)).date(),
+            start=(get_execute_datetime_in_kst(**kwargs) + timedelta(days=-10)).date(),
             end=(get_execute_datetime_in_kst(**kwargs) + timedelta(days=1)).date(),
         )
         return transform_exchange_data(data)
