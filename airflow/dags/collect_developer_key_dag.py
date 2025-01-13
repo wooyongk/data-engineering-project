@@ -12,7 +12,7 @@ from common.default_config import default_dag_config
 with DAG(
     dag_id="collect-developer-key",
     description="개발자 키 갱신",
-    start_date=pendulum.datetime(2025, 1, 8),
+    start_date=pendulum.datetime(2025, 1, 8, tz="Asia/Seoul"),
     schedule="@daily",
     catchup=False,
     default_args=default_dag_config,

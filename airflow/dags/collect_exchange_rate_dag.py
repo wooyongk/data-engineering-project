@@ -44,7 +44,7 @@ def transform_exchange_data(data):
 with DAG(
     dag_id="collect-exchange-rate-data",
     description="환율 데이터 수집 및 적재",
-    start_date=pendulum.datetime(2024, 9, 1),
+    start_date=pendulum.datetime(2024, 9, 1, tz="Asia/Seoul"),
     schedule="0 9-18 * * 1-5",
     catchup=False,
     default_args=default_dag_config,
