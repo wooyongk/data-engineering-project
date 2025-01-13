@@ -13,7 +13,7 @@ from airflow.providers.mysql.hooks.mysql import MySqlHook
 from common.airflow_info import get_execute_datetime_in_kst
 from common.custom_pandas import upsert_method
 from common.default_config import default_dag_config
-from custom_operators.sql import SQLColumnValueExistenceCheckOperator
+from custom_operators.sql import SQLColumnValueExistenceCheckOperator, HolidayOperator
 
 CONN_ID = "MYSQL_DATABASE_DATA"
 TABLE_NAME = "exchange_rate"
@@ -45,12 +45,14 @@ with DAG(
     dag_id="collect-exchange-rate-data",
     description="환율 데이터 수집 및 적재",
     start_date=pendulum.datetime(2024, 9, 1),
-    schedule="@hourly",
+    schedule="0 9-18 * * 1-5",
     catchup=False,
     default_args=default_dag_config,
     tags=["yfinance", "환율", "수집"],
 ):
     start = EmptyOperator(task_id="start")
+
+    check_holiday = HolidayOperator(task_id="check-holiday")
 
     validate_table_task = SQLColumnValueExistenceCheckOperator(
         task_id="validate-table",
@@ -86,7 +88,7 @@ with DAG(
             "collect_recent" if up_to_date else None,
         ]
 
-    @task(task_id="collect-historical", trigger_rule="all_done")
+    @task(task_id="collect-historical")
     def collect_historical_data(**kwargs):
         task_instance = kwargs["ti"]
         outdated = task_instance.xcom_pull(key="outdated", task_ids="branch-period")
@@ -100,7 +102,7 @@ with DAG(
         )
         return transform_exchange_data(data)
 
-    @task(task_id="collect-recent", trigger_rule="all_done")
+    @task(task_id="collect-recent")
     def collect_recent_data(**kwargs):
         task_instance = kwargs["ti"]
         up_to_date = task_instance.xcom_pull(key="up_to_date", task_ids="branch-period")
@@ -109,7 +111,7 @@ with DAG(
 
         data = yf.download(
             up_to_date,
-            start=get_execute_datetime_in_kst(**kwargs).date(),
+            start=(get_execute_datetime_in_kst(**kwargs) + timedelta(days=-2)).date(),
             end=(get_execute_datetime_in_kst(**kwargs) + timedelta(days=1)).date(),
         )
         return transform_exchange_data(data)
@@ -146,6 +148,7 @@ with DAG(
 
     (
         start
+        >> check_holiday
         >> validate_table_task
         >> branch_logic()
         >> [collect_historical_data(), collect_recent_data()]
