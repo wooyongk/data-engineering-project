@@ -16,7 +16,7 @@ with DAG(
     dag_id="collect-holiday-data",
     description="휴장일 수집",
     start_date=pendulum.datetime(2025, 1, 8, tz="Asia/Seoul"),
-    schedule="@daily",
+    schedule="15 22 * * *",
     catchup=False,
     default_args=default_dag_config,
     tags=["KIS", "휴장일", "수집"],

@@ -13,7 +13,7 @@ with DAG(
     dag_id="collect-developer-key",
     description="개발자 키 갱신",
     start_date=pendulum.datetime(2025, 1, 8, tz="Asia/Seoul"),
-    schedule="@daily",
+    schedule="0 22 * * *",
     catchup=False,
     default_args=default_dag_config,
     tags=["KIS", "키발급", "갱신"],
