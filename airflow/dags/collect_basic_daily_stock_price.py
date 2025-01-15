@@ -46,26 +46,30 @@ with DAG(
 
         stock_price = []
         for stock, cnt in result:
-            if cnt == 0:
-                start_date = "2020-01-01"
-            else:
-                start_date = (
-                    get_execute_datetime_in_kst(**kwargs) - timedelta(days=10)
-                ).date()
+            try:
+                if cnt == 0:
+                    start_date = "2020-01-01"
+                else:
+                    start_date = (
+                        get_execute_datetime_in_kst(**kwargs) - timedelta(days=10)
+                    ).date()
 
-            data = fdr.DataReader(
-                symbol=f"KRX:{stock}",
-                start=start_date,
-                end=get_execute_datetime_in_kst(**kwargs).date(),
-            ).reset_index()[
-                ["Date", "Open", "High", "Low", "Close", "Volume", "Amount"]
-            ]
+                data = fdr.DataReader(
+                    symbol=f"KRX:{stock}",
+                    start=start_date,
+                    end=get_execute_datetime_in_kst(**kwargs).date(),
+                ).reset_index()[
+                    ["Date", "Open", "High", "Low", "Close", "Volume", "Amount"]
+                ]
 
-            data.columns = data.columns.str.lower()
-            data.insert(0, "code", stock)
-            data.insert(1, "currency", "KRW")
+                data.columns = data.columns.str.lower()
+                data.insert(0, "code", stock)
+                data.insert(1, "currency", "KRW")
 
-            stock_price.append(data)
+                stock_price.append(data)
+
+            except Exception as stock_error:
+                print(f"Error fetching data for stock {stock}: {stock_error}")
 
         combined_data = pd.concat(stock_price, ignore_index=True)
 
