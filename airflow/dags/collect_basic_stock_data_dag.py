@@ -6,6 +6,7 @@ import pendulum
 import requests
 from airflow import DAG
 from airflow.decorators import task
+from airflow.models import Variable
 from airflow.operators.empty import EmptyOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 
@@ -24,6 +25,9 @@ def get_session() -> requests.Session:
     try:
         session = requests.Session()
         session.headers.update(KRX_HEADERS)
+        session.proxies = {
+            "http": f'http://scraperapi:{Variable.get("scraper_api_key")}@proxy-server.scraperapi.com:8001',
+        }
         return session
     except requests.RequestException as e:
         raise ConnectionError("Failed to create session: ", e)
