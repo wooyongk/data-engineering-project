@@ -19,21 +19,13 @@ KRX_HEADERS = {
     "Upgrade-Insecure-Requests": "1",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 }
+proxies = {
+    "http": Variable.get("proxy_ip_secret"),
+    "https": Variable.get("proxy_ip_secret"),
+}
 
 
-def get_session() -> requests.Session:
-    try:
-        session = requests.Session()
-        session.headers.update(KRX_HEADERS)
-        session.proxies = {
-            "http": f'http://scraperapi:{Variable.get("scraper_api_key")}@proxy-server.scraperapi.com:8001',
-        }
-        return session
-    except requests.RequestException as e:
-        raise ConnectionError("Failed to create session: ", e)
-
-
-def get_otp_code(session: requests.Session) -> str:
+def get_otp_code() -> str:
     otp_params = {
         "mktId": "ALL",
         "share": "1",
@@ -41,19 +33,24 @@ def get_otp_code(session: requests.Session) -> str:
         "name": "fileDown",
         "url": "dbms/MDC/STAT/standard/MDCSTAT01901",
     }
-    response = session.get(
+    response = requests.get(
         url=f"{KRX_BASE_URL}/comm/fileDn/GenerateOTP/generate.cmd",
         params=otp_params,
+        headers=KRX_HEADERS,
+        proxies=proxies,
     )
     response.raise_for_status()
+
     if not response.content:
         raise ValueError("OTP code response is empty.")
     return response.content
 
 
-def download_stock_data(session: requests.Session, otp_code: str) -> pd.DataFrame:
+def download_stock_data(otp_code: str) -> pd.DataFrame:
     download_url = f"{KRX_BASE_URL}/comm/fileDn/download_csv/download.cmd"
-    response = session.post(url=download_url, data={"code": otp_code})
+    response = requests.post(
+        url=download_url, data={"code": otp_code}, headers=KRX_HEADERS, proxies=proxies
+    )
     response.raise_for_status()
 
     df = pd.read_csv(
@@ -89,9 +86,8 @@ with DAG(
 
     @task(task_id="fetch-stock-data-from-krx")
     def fetch_stock_data_from_krx() -> BytesIO:
-        with get_session() as session:
-            otp_code = get_otp_code(session)
-            return download_stock_data(session, otp_code)
+        otp_code = get_otp_code()
+        return download_stock_data(otp_code)
 
     @task(task_id="upsert-stock-data-to-db")
     def upsert_stock_data_to_db(**context) -> None:
