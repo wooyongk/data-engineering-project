@@ -33,7 +33,7 @@ with DAG(
     @task(task_id="fetch-stock-list-batches")
     def fetch_stock_batches():
         batch_size = 300
-        query = "SELECT code FROM STOCK limit 10;"
+        query = "SELECT code FROM STOCK"
         stock_records = mysql_hook.get_records(sql=query)
 
         stock_ids = [record[0] for record in stock_records]
