@@ -32,7 +32,7 @@ with DAG(
 
     @task(task_id="fetch-stock-list-batches")
     def fetch_stock_batches():
-        batch_size = 6
+        batch_size = 300
         query = """
         SELECT 
             a.code, 
