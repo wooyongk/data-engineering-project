@@ -24,6 +24,7 @@ with DAG(
     schedule="0 9-20/2 * * 1-5",
     catchup=False,
     default_args=default_dag_config,
+    max_active_tasks=5,
     tags=["KIS", "주식", "시세", "수집"],
 ):
     start = EmptyOperator(task_id="start")
@@ -32,7 +33,7 @@ with DAG(
 
     @task(task_id="fetch-stock-list-batches")
     def fetch_stock_batches():
-        batch_size = 300
+        batch_size = 100
         query = "SELECT code FROM STOCK"
         stock_records = mysql_hook.get_records(sql=query)
 
