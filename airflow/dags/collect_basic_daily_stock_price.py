@@ -33,20 +33,12 @@ with DAG(
     @task(task_id="fetch-stock-list-batches")
     def fetch_stock_batches():
         batch_size = 300
-        query = """
-        SELECT 
-            a.code, 
-            COUNT(OPEN) AS cnt 
-        FROM STOCK a 
-        LEFT JOIN stock_basic_daily_price b 
-            ON a.code = b.code 
-        GROUP BY 1;
-        """
-
+        query = "SELECT code FROM STOCK limit 10;"
         stock_records = mysql_hook.get_records(sql=query)
+
+        stock_ids = [record[0] for record in stock_records]
         batches = [
-            stock_records[i : i + batch_size]
-            for i in range(0, len(stock_records), batch_size)
+            stock_ids[i : i + batch_size] for i in range(0, len(stock_ids), batch_size)
         ]
         return batches
 
@@ -58,13 +50,9 @@ with DAG(
         upsert_with_unique_keys = partial(upsert_method, unique_keys=["date", "code"])
 
         stock_price = []
-        for stock, data_count in stock_list:
+        for stock in stock_list:
             try:
-                start_date = (
-                    (nowtime - timedelta(days=5)).strftime("%Y%m%d")
-                    if data_count > 0
-                    else "20200101"
-                )
+                start_date = (nowtime - timedelta(days=10)).strftime("%Y%m%d")
                 end_date = nowtime.strftime("%Y%m%d")
 
                 params = {
