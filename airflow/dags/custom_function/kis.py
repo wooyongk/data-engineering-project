@@ -10,17 +10,20 @@ class KISApiClient:
         self.base_url = "https://openapi.koreainvestment.com:9443"
         self.last_request_time = 0
         self.request_interval = 1 / 15  # 초당 15건 제한 / 초당 20건 제한(실제)
-
-    def _get_headers(self, tr_id=None):
-        headers = {
+        self.headers = {
             "content-type": "application/json",
             "authorization": f"Bearer {Variable.get('kis_access_token')}",
             "appkey": Variable.get("kis_app_access_key"),
             "appsecret": Variable.get("kis_app_secret_key"),
         }
+
+    def _get_headers(self, tr_id=None):
         if tr_id:
-            headers["tr_id"] = tr_id
-        return headers
+            self.headers["tr_id"] = tr_id
+        else:
+            self.headers.pop("tr_id", None)
+
+        return self.headers
 
     def make_request(self, method, endpoint, params=None, data=None, tr_id=None):
         url = f"{self.base_url}{endpoint}"
