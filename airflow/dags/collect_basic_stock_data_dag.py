@@ -12,6 +12,7 @@ from airflow.providers.mysql.hooks.mysql import MySqlHook
 
 from common.custom_pandas import upsert_method
 from common.default_config import default_dag_config
+from custom_function.kis import KISApiClient
 
 KRX_BASE_URL = "https://data.krx.co.kr"
 KRX_HEADERS = {
@@ -80,7 +81,7 @@ with DAG(
     schedule="0 22 * * *",
     catchup=False,
     default_args=default_dag_config,
-    tags=["주식", "KRX", "수집"],
+    tags=["주식", "KRX", "KIS", "수집"],
 ):
     start = EmptyOperator(task_id="start")
 
@@ -89,14 +90,54 @@ with DAG(
         otp_code = get_otp_code()
         return download_stock_data(otp_code)
 
+    @task(task_id="fetch-stock-data-from-kis")
+    def fetch_stock_data_from_kis(**context):
+        client = KISApiClient()
+        endpoint = "/uapi/domestic-stock/v1/quotations/search-stock-info"
+
+        data = context["ti"].xcom_pull(task_ids="fetch-stock-data-from-krx")
+
+        for idx, row in data.iterrows():
+            params = {
+                "PRDT_TYPE_CD": 300,
+                "PDNO": row["code"],
+            }
+
+            response = client.make_request(
+                method="GET",
+                endpoint=endpoint,
+                params=params,
+                tr_id="CTPF1002R",
+            )
+
+            output = response["output"]
+
+            def get_value(key, default=None):
+                value = output.get(key, default)
+                return value if value != "" else default
+
+            keys = {
+                "standard_industry": "std_idst_clsf_cd_name",
+                "index_industry_section": "idx_bztp_lcls_cd_name",
+                "index_industry_division": "idx_bztp_mcls_cd_name",
+                "index_industry_group": "idx_bztp_scls_cd_name",
+                "delisting_date": "lstg_abol_dt",
+                "trading_stop_yn": "tr_stop_yn",
+            }
+
+            for key, output_key in keys.items():
+                data.loc[idx, key] = get_value(output_key)
+
+        return data
+
     @task(task_id="upsert-stock-data-to-db")
     def upsert_stock_data_to_db(**context) -> None:
         mysql_hook = MySqlHook(
             mysql_conn_id="MYSQL_DATABASE_DATA"
         ).get_sqlalchemy_engine()
-        upsert_with_unique_keys = partial(upsert_method, unique_keys=["id", "subject"])
+        upsert_with_unique_keys = partial(upsert_method, unique_keys=["id"])
 
-        data = context["ti"].xcom_pull(task_ids="fetch-stock-data-from-krx")
+        data = context["ti"].xcom_pull(task_ids="fetch-stock-data-from-kis")
 
         data.to_sql(
             con=mysql_hook,
@@ -107,8 +148,12 @@ with DAG(
             method=upsert_with_unique_keys,
         )
 
-    stock_data = fetch_stock_data_from_krx()
-
     end = EmptyOperator(task_id="end")
 
-    start >> stock_data >> upsert_stock_data_to_db() >> end
+    (
+        start
+        >> fetch_stock_data_from_krx()
+        >> fetch_stock_data_from_kis()
+        >> upsert_stock_data_to_db()
+        >> end
+    )
