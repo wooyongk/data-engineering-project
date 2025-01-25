@@ -78,7 +78,7 @@ with DAG(
     dag_id="collect-stock-basic-data",
     description="주식 기본 데이터 수집 및 적재",
     start_date=pendulum.datetime(2024, 9, 1, tz="Asia/Seoul"),
-    schedule="0 22 * * *",
+    schedule="5 22 * * *",
     catchup=False,
     default_args=default_dag_config,
     tags=["주식", "KRX", "KIS", "수집"],
