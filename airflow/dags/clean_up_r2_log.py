@@ -50,6 +50,10 @@ with DAG(
         else:
             print("No files found in the bucket.")
 
+    @task.bash(task_id="scheduler-log-clean-up")
+    def scheduler_cleanup():
+        return "find /opt/airflow/logs/scheduler -type d -mtime +5 -exec rm -rf {} +"
+
     end = EmptyOperator(task_id="end")
 
-    start >> cleanup() >> end
+    start >> cleanup() >> scheduler_cleanup() >> end
